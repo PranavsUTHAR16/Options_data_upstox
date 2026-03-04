@@ -231,9 +231,11 @@ class DataFetcher:
             return None
 
     def get_expired_expiries(self, instrument_key=None):
-        """Get expired expiry dates"""
+        """Get expired expiry dates with enhanced logging"""
         if instrument_key is None:
             instrument_key = self.config["index_key"]
+            
+        self.logger.info(f"Fetching expired expiries for {instrument_key}...")
         try:
             from urllib.parse import quote
             encoded_key = quote(instrument_key, safe='')
@@ -248,7 +250,15 @@ class DataFetcher:
             if response.status_code == 200:
                 data = response.json()
                 if data.get('status') == 'success':
-                    return data.get('data', [])
+                    expiries = data.get('data', [])
+                    self.logger.info(f"Found {len(expiries)} expired expiries")
+                    return expiries
+                else:
+                    self.logger.error(f"Expired expiries API error: {data}")
+            else:
+                self.logger.error(f"Expired expiries API status code: {response.status_code}")
+                if response.status_code == 401:
+                    self.logger.error("Unauthorized: Check if your token has expired-instruments scope")
             return []
         except Exception as e:
             self.logger.error(f"Failed to fetch expired expiries: {e}")
@@ -335,41 +345,54 @@ class DataFetcher:
         self.logger.info(f"Fetched {len(index_df)} {self.index_name} candles")
         
         # Determine expiries
-        # First try active instruments
         strikes = self.get_strike_range(index_df)
-        active_expiries = [e for e in self.find_closest_expiries(target_dt, 10)]
         
-        # Also check expired API for expiries relevant to target_date
-        self.logger.info("Checking expired expiries API...")
-        expired_expiries_raw = self.get_expired_expiries(self.config["index_key"])
-        expired_expiries = []
-        for e_str in expired_expiries_raw:
-            try:
-                e_dt = datetime.strptime(e_str, "%Y-%m-%d").date()
-                # Expiry must be on or after target_date
-                if e_dt >= target_dt:
-                    expired_expiries.append(e_dt)
-            except Exception as e:
-                continue
+        selected_expiries = []
         
-        # Combine and take closest 5 unique expiries
-        all_expiries = sorted(list(set(active_expiries + expired_expiries)))[:5]
-        
-        if not all_expiries:
-            self.logger.error(f"No expiries found for {target_date}")
-            return None
-        
-        self.logger.info(f"Using expiries: {[e.strftime('%Y-%m-%d') for e in all_expiries]}")
-        
+        if is_today:
+            # For today, just use active instruments
+            active_expiries = self.find_closest_expiries(target_dt, 5)
+            selected_expiries = active_expiries
+            self.logger.info(f"Using active expiries: {[e.strftime('%Y-%m-%d') for e in selected_expiries]}")
+        else:
+            # For historical dates, we MUST use expired instruments API
+            # and potentially active instruments if the expiry hasn't passed yet
+            self.logger.info(f"Target date {target_date} is in the past. Checking for relevant expiries...")
+            
+            # 1. Get Expired Expiries
+            expired_expiries_raw = self.get_expired_expiries(self.config["index_key"])
+            expired_expiries = []
+            for e_str in expired_expiries_raw:
+                try:
+                    e_dt = datetime.strptime(e_str, "%Y-%m-%d").date()
+                    if e_dt >= target_dt: # Only expiries that were active on or after target_date
+                        expired_expiries.append(e_dt)
+                except ValueError:
+                    continue
+            
+            # 2. Get currently active expiries that might have been active then
+            active_expiries = self.find_closest_expiries(target_dt, 10)
+            
+            # Combine and sort, then take the closest ones
+            combined = sorted(list(set(expired_expiries + active_expiries)))
+            selected_expiries = [e for e in combined if e >= target_dt][:5]
+            
+            if not selected_expiries:
+                self.logger.error(f"No expiries found for {target_date}")
+                return None
+            
+            self.logger.info(f"Selected expiries for {target_date}: {[e.strftime('%Y-%m-%d') for e in selected_expiries]}")
+
         # Create output folder
         date_folder = RAW_DIR / date_folder_name
         date_folder.mkdir(parents=True, exist_ok=True)
         
         total_saved = 0
         
-        for expiry in all_expiries:
+        for expiry in selected_expiries:
             expiry_str = expiry.strftime("%d%b%Y").upper()
             expiry_date_str = expiry.strftime("%Y-%m-%d")
+            
             self.logger.info(f"Processing expiry: {expiry_str}")
             
             expiry_folder = date_folder / expiry_str
