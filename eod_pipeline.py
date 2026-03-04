@@ -37,21 +37,25 @@ INDEX_CONFIG = {
     "NIFTY": {
         "index_key": "NSE_INDEX|Nifty 50",
         "symbol": "NIFTY",
+        "exchange": "NSE_FO",
         "strike_step": 50
     },
     "BANKNIFTY": {
         "index_key": "NSE_INDEX|Nifty Bank",
         "symbol": "BANKNIFTY",
+        "exchange": "NSE_FO",
         "strike_step": 100
     },
     "FINNIFTY": {
         "index_key": "NSE_INDEX|Nifty Fin Service",
         "symbol": "FINNIFTY",
+        "exchange": "NSE_FO",
         "strike_step": 100
     },
     "SENSEX": {
         "index_key": "BSE_INDEX|SENSEX",
         "symbol": "SENSEX",
+        "exchange": "BSE_FO",
         "strike_step": 100
     }
 }
@@ -291,7 +295,7 @@ class DataFetcher:
         options = self.symbol_df[
             (self.symbol_df['name'] == self.config["symbol"]) &
             (self.symbol_df['instrument_type'] == 'OPTIDX') &
-            (self.symbol_df['exchange'] == 'NSE_FO') &
+            (self.symbol_df['exchange'] == self.config["exchange"]) &
             (self.symbol_df['option_type'] == option_type) &
             (self.symbol_df['expiry'] == expiry_date) &
             (self.symbol_df['strike'] == float(strike))
@@ -306,7 +310,7 @@ class DataFetcher:
         index_options = self.symbol_df[
             (self.symbol_df['name'] == self.config["symbol"]) &
             (self.symbol_df['instrument_type'] == 'OPTIDX') &
-            (self.symbol_df['exchange'] == 'NSE_FO')
+            (self.symbol_df['exchange'] == self.config["exchange"])
         ]
         
         future = index_options['expiry'].dropna()
