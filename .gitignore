@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Environment and Tokens
+.env
+access_token.json
+
+# Data and Logs
+eod_data/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store

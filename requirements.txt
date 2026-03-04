@@ -1,0 +1,9 @@
+pandas
+numpy
+requests
+upstox-client
+python-dotenv
+pyarrow
+tqdm
+playwright
+pyotp
