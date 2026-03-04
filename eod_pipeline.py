@@ -309,7 +309,7 @@ class DataFetcher:
             (self.symbol_df['exchange'] == 'NSE_FO')
         ]
         
-        future = nifty_options['expiry'].dropna()
+        future = index_options['expiry'].dropna()
         future = future[future >= reference_date]
         return sorted(future.unique())[:num]
     
